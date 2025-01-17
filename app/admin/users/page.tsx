@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Plus, Edit, Trash, Check, X, DollarSign, Percent, Eye } from 'lucide-react'
 import { PageHeader } from "../components/page-header"
@@ -124,7 +124,11 @@ const initialUsers: User[] = [
 
 export default function UsersManagementPage() {
   const [users, setUsers] = useState<User[]>(initialUsers)
-  const [newUser, setNewUser] = useState<Partial<User>>({})
+  const [newUser, setNewUser] = useState<Partial<User>>({
+    withdrawalLimit: { weekly: null, monthly: null, yearly: null },
+    sendingLimit: { weekly: null, monthly: null, yearly: null },
+    idCard: ""
+  })
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all")
@@ -133,37 +137,75 @@ export default function UsersManagementPage() {
     filterStatus === "all" ? true : user.status === filterStatus
   )
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newUser.firstName || !newUser.lastName || !newUser.email) return
+    if (!newUser.firstName || !newUser.lastName || !newUser.email) {
+      toast({ title: "Error", description: "All fields are required.", variant: "destructive" })
+      return
+    }
 
-    const user: User = {
-      id: (users.length + 1).toString(),
-      ...newUser,
-      role: newUser.role || "user",
-      status: "pending",
-      balance: 0,
-      withdrawalLimit: {
-        weekly: null,
-        monthly: null,
-        yearly: null
-      },
-      sendingLimit: {
-        weekly: null,
-        monthly: null,
-        yearly: null
-      },
-      feeType: "percentage",
-      feeAmount: 0,
-    } as User
+    const formData = new FormData()
+    formData.append('firstName', newUser.firstName)
+    formData.append('lastName', newUser.lastName)
+    formData.append('email', newUser.email)
+    if (newUser.idCard && typeof newUser.idCard !== 'string') {
+      formData.append('idCard', newUser.idCard)
+    }
 
-    setUsers([...users, user])
-    setNewUser({})
-    toast({
-      title: "User Added",
-      description: `${user.firstName} ${user.lastName} has been added successfully.`,
-    })
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        toast({ title: "Error", description: errorData.error || "Failed to add user.", variant: "destructive" })
+        return
+      }
+
+      setUsers([...users, {
+        ...newUser,
+        id: (users.length + 1).toString(),
+        status: "pending",
+        balance: 0,
+        role: newUser.role || "user",
+        feeType: "percentage",
+        feeAmount: 0,
+        withdrawalLimit: newUser.withdrawalLimit || { weekly: null, monthly: null, yearly: null },
+        sendingLimit: newUser.sendingLimit || { weekly: null, monthly: null, yearly: null }
+      } as User])
+      setNewUser({
+        withdrawalLimit: { weekly: null, monthly: null, yearly: null },
+        sendingLimit: { weekly: null, monthly: null, yearly: null },
+        idCard: ""
+      })
+      toast({
+        title: "User Added",
+        description: `${newUser.firstName} ${newUser.lastName} has been added successfully.`,
+      })
+    } catch (error) {
+      console.error(error)
+      toast({ title: "Error", description: "An error occurred while adding the user.", variant: "destructive" })
+    }
   }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const file = e.target.files[0];
+    const fileUrl = URL.createObjectURL(file);
+    setNewUser(prev => ({ ...prev, idCard: fileUrl }));
+  };
+
+  // Fetch users on component mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const response = await fetch('/api/users')
+      const data = await response.json()
+      setUsers(data)
+    }
+    fetchUsers()
+  }, [])
 
   const handleEditUser = (user: User) => {
     setEditingUser(user)
@@ -197,7 +239,7 @@ export default function UsersManagementPage() {
 
   const handleApproveUser = (id: string) => {
     const updatedUsers = users.map(user => 
-      user.id === id ? { ...user, status: "approved" } : user
+      user.id === id ? { ...user, status: "approved" as const } : user
     )
     setUsers(updatedUsers)
     toast({
@@ -217,7 +259,7 @@ export default function UsersManagementPage() {
     }
 
     const updatedUsers = users.map(user => 
-      user.id === id ? { ...user, status: "rejected" } : user
+      user.id === id ? { ...user, status: "rejected" as const } : user
     )
     setUsers(updatedUsers)
     toast({
@@ -336,7 +378,8 @@ export default function UsersManagementPage() {
                   <Input
                     id="idCard"
                     type="file"
-                    onChange={(e) => setNewUser({...newUser, idCard: e.target.value})}
+                    accept="image/*"
+                    onChange={handleFileChange}
                   />
                 </div>
                 <div>
@@ -557,8 +600,17 @@ export default function UsersManagementPage() {
                     <Input
                       id="editWithdrawalLimitWeekly"
                       type="number"
-                      value={newUser.withdrawalLimit?.weekly || ""}
-                      onChange={(e) => setNewUser({...newUser, withdrawalLimit: {...newUser.withdrawalLimit, weekly: e.target.value ? parseFloat(e.target.value) : null}})}
+                      value={newUser.withdrawalLimit?.weekly ?? ""}
+                      onChange={(e) => {
+                        const currentLimits = newUser.withdrawalLimit ?? { weekly: null, monthly: null, yearly: null };
+                        setNewUser({
+                        ...newUser,
+                        withdrawalLimit: {
+                            ...currentLimits,
+                            weekly: e.target.value ? parseFloat(e.target.value) : null
+                        }
+                        });
+                      }}
                       placeholder="No limit"
                     />
                   </div>
@@ -567,8 +619,17 @@ export default function UsersManagementPage() {
                     <Input
                       id="editWithdrawalLimitMonthly"
                       type="number"
-                      value={newUser.withdrawalLimit?.monthly || ""}
-                      onChange={(e) => setNewUser({...newUser, withdrawalLimit: {...newUser.withdrawalLimit, monthly: e.target.value ? parseFloat(e.target.value) : null}})}
+                      value={newUser.withdrawalLimit?.monthly ?? ""}
+                      onChange={(e) => {
+                        const currentLimits = newUser.withdrawalLimit ?? { weekly: null, monthly: null, yearly: null };
+                        setNewUser({
+                          ...newUser,
+                          withdrawalLimit: {
+                            ...currentLimits,
+                            monthly: e.target.value ? parseFloat(e.target.value) : null
+                          }
+                        });
+                      }}
                       placeholder="No limit"
                     />
                   </div>
@@ -577,8 +638,17 @@ export default function UsersManagementPage() {
                     <Input
                       id="editWithdrawalLimitYearly"
                       type="number"
-                      value={newUser.withdrawalLimit?.yearly || ""}
-                      onChange={(e) => setNewUser({...newUser, withdrawalLimit: {...newUser.withdrawalLimit, yearly: e.target.value ? parseFloat(e.target.value) : null}})}
+                      value={newUser.withdrawalLimit?.yearly ?? ""}
+                      onChange={(e) => {
+                        const currentLimits = newUser.withdrawalLimit ?? { weekly: null, monthly: null, yearly: null };
+                        setNewUser({
+                        ...newUser,
+                        withdrawalLimit: {
+                            ...currentLimits,
+                            yearly: e.target.value ? parseFloat(e.target.value) : null
+                        }
+                        });
+                      }}
                       placeholder="No limit"
                     />
                   </div>
@@ -592,8 +662,17 @@ export default function UsersManagementPage() {
                     <Input
                       id="editSendingLimitWeekly"
                       type="number"
-                      value={newUser.sendingLimit?.weekly || ""}
-                      onChange={(e) => setNewUser({...newUser, sendingLimit: {...newUser.sendingLimit, weekly: e.target.value ? parseFloat(e.target.value) : null}})}
+                      value={newUser.sendingLimit?.weekly ?? ""}
+                      onChange={(e) => {
+                        const currentLimits = newUser.sendingLimit ?? { weekly: null, monthly: null, yearly: null };
+                        setNewUser({
+                          ...newUser,
+                          sendingLimit: {
+                            ...currentLimits,
+                            weekly: e.target.value ? parseFloat(e.target.value) : null
+                          }
+                        });
+                      }}
                       placeholder="No limit"
                     />
                   </div>
@@ -602,8 +681,17 @@ export default function UsersManagementPage() {
                     <Input
                       id="editSendingLimitMonthly"
                       type="number"
-                      value={newUser.sendingLimit?.monthly || ""}
-                      onChange={(e) => setNewUser({...newUser, sendingLimit: {...newUser.sendingLimit, monthly: e.target.value ? parseFloat(e.target.value) : null}})}
+                      value={newUser.sendingLimit?.monthly ?? ""}
+                      onChange={(e) => {
+                        const currentLimits = newUser.sendingLimit ?? { weekly: null, monthly: null, yearly: null };
+                        setNewUser({
+                          ...newUser,
+                          sendingLimit: {
+                            ...currentLimits,
+                            monthly: e.target.value ? parseFloat(e.target.value) : null
+                          }
+                        });
+                      }}
                       placeholder="No limit"
                     />
                   </div>
@@ -612,8 +700,17 @@ export default function UsersManagementPage() {
                     <Input
                       id="editSendingLimitYearly"
                       type="number"
-                      value={newUser.sendingLimit?.yearly || ""}
-                      onChange={(e) => setNewUser({...newUser, sendingLimit: {...newUser.sendingLimit, yearly: e.target.value ? parseFloat(e.target.value) : null}})}
+                      value={newUser.sendingLimit?.yearly ?? ""}
+                      onChange={(e) => {
+                        const currentLimits = newUser.sendingLimit ?? { weekly: null, monthly: null, yearly: null };
+                        setNewUser({
+                          ...newUser,
+                          sendingLimit: {
+                            ...currentLimits,
+                            yearly: e.target.value ? parseFloat(e.target.value) : null
+                          }
+                        });
+                      }}
                       placeholder="No limit"
                     />
                   </div>

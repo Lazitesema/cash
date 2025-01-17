@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 
 export default function UserSignInPage() {
@@ -14,30 +14,39 @@ export default function UserSignInPage() {
   const [password, setPassword] = useState('')
   const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Here you would typically handle authentication
-    // For now, we'll just simulate a successful login
-    if (email === 'user@cashora.com' && password === 'user123') {
-      localStorage.setItem('userAuthenticated', 'true')
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const response = await fetch('/api/auth/loginUser', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      localStorage.setItem('supabaseSession', JSON.stringify(data.session));
       toast({
         title: "Sign in successful",
         description: "Welcome back!",
-      })
-      router.push('/dashboard')
+      });
+      router.push('/dashboard');
     } else {
       toast({
         title: "Sign in failed",
-        description: "Invalid email or password",
+        description: data.error || "Invalid email or password",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/20 to-background flex items-center justify-center px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
+        <CardHeader>
           <div className="flex justify-center mb-4">
             <Image
               src="/placeholder.svg?height=60&width=60"
@@ -80,11 +89,6 @@ export default function UserSignInPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-muted-foreground">
-            Don't have an account? <a href="/signup" className="text-primary hover:underline">Sign up</a>
-          </p>
-        </CardFooter>
       </Card>
     </div>
   )

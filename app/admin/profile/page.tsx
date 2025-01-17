@@ -36,30 +36,25 @@ const initialProfile: AdminProfile = {
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<AdminProfile>(initialProfile)
-
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Here you would typically save the profile to your backend
-    console.log("Saving profile:", profile)
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been updated successfully.",
-    })
-  }
+  const [avatar, setAvatar] = useState<File | null>(null)
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      // Here you would typically upload the file to your server or a file storage service
-      // For this example, we'll just use a local URL
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setProfile({...profile, avatar: event.target.result as string})
-        }
-      }
-      reader.readAsDataURL(file)
+    const file = e.target.files ? e.target.files[0] : null
+    setAvatar(file)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const formData = new FormData()
+    formData.append('name', profile.name)
+    formData.append('email', profile.email)
+    formData.append('role', profile.role)
+    formData.append('bio', profile.bio)
+    if (avatar) {
+      formData.append('avatar', avatar)
     }
+
+    // Submit formData to your API
   }
 
   return (
@@ -81,7 +76,7 @@ export default function ProfilePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSaveProfile} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="w-20 h-20">
                 <AvatarImage src={profile.avatar} alt={profile.name} />
