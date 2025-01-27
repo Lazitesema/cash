@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase"
 
 export default function UserSignInPage() {
   const [email, setEmail] = useState('')
@@ -17,17 +18,19 @@ export default function UserSignInPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const response = await fetch('/api/auth/loginUser', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
     });
 
-    const data = await response.json();
+    if (error) throw error;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user?.id)
+      .single();
 
-    if (response.ok) {
+    if (data) {
       localStorage.setItem('supabaseSession', JSON.stringify(data.session));
       toast({
         title: "Sign in successful",
@@ -37,7 +40,7 @@ export default function UserSignInPage() {
     } else {
       toast({
         title: "Sign in failed",
-        description: data.error || "Invalid email or password",
+        description: error?.message || "Invalid email or password",
         variant: "destructive",
       });
     }

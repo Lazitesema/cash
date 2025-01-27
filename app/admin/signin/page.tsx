@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
+import { supabase } from "@/lib/supabase"
 
 export default function AdminSignInPage() {
   const [email, setEmail] = useState('')
@@ -17,18 +18,27 @@ export default function AdminSignInPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const response = await fetch('/api/auth/loginAdmin', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    const data = await response.json()
+    if (error) {
+      toast({
+        title: "Sign in failed",
+        description: error.message,
+        variant: "destructive",
+      })
+      return;
+    }
 
-    if (response.ok) {
-      localStorage.setItem('adminAuthenticated', 'true')
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user?.id)
+      .single();
+
+    if (profile && profile.role === 'admin') {
       toast({
         title: "Sign in successful",
         description: "Welcome back, admin!",
@@ -37,7 +47,7 @@ export default function AdminSignInPage() {
     } else {
       toast({
         title: "Sign in failed",
-        description: data.error || "Invalid email or password",
+        description: "Invalid email or password",
         variant: "destructive",
       })
     }

@@ -6,6 +6,7 @@ import { Sidebar } from './components/sidebar'
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AdminHeader } from './components/admin-header'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminLayout({
   children,
@@ -17,10 +18,16 @@ export default function AdminLayout({
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
-    const checkAuth = () => {
-      const isAuth = localStorage.getItem('adminAuthenticated') === 'true'
-      setIsAuthenticated(isAuth)
-      if (!isAuth && pathname !== '/admin/signin') {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session?.user?.id)
+        .single();
+
+      setIsAuthenticated(profile?.role === 'admin');
+      if (profile?.role !== 'admin' && pathname !== '/admin/signin') {
         router.push('/admin/signin')
       }
     }

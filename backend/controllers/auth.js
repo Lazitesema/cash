@@ -26,7 +26,13 @@ const loginAdmin = async (req, res) => {
     }
 
     // Role-based access control
-    if (!data.user || data.user.role !== 'admin') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single();
+
+    if (!profile || profile.role !== 'admin') {
       return res.status(403).json({ error: 'Access denied. Admins only.' });
     }
 
@@ -106,14 +112,43 @@ const loginUser = async (req, res) => {
   }
 };
 
-// Logout function
-const logout = async (req, res) => {
+// User logout
+const logoutUser = async (req, res) => {
   try {
-    await supabase.auth.signOut();
-    res.status(200).json({ message: 'Logged out successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    // Validate session token from request headers
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No session token provided' });
+    }
+
+    // Extract token from Bearer header
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'Invalid authorization header format' });
+    }
+
+    // Sign out the user from Supabase
+    const { error } = await supabase.auth.signOut({
+      scope: 'local', // Only sign out from current device
+      token: token
+    });
+
+    if (error) throw error;
+
+    res.status(200).json({ 
+      message: 'Logged out successfully' 
+    });
+
+  } catch (error) {
+    console.error('Error during logout:', error);
+    res.status(500).json({ error: 'Failed to logout' });
   }
 };
 
-module.exports = { loginAdmin, signUpUser, loginUser, logout };
+// Update exports
+module.exports = {
+  loginAdmin,
+  signUpUser,
+  loginUser,
+  logoutUser
+};

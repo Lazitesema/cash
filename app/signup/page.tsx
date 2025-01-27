@@ -1,38 +1,86 @@
-"use client"
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase"; // Ensure this file is created and configured
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    username: '',
-    email: '',
-    dateOfBirth: '',
-    placeOfBirth: '',
-    residence: '',
-    nationality: '',
+    firstName: "",
+    lastName: "",
+    username: "",
+    email: "",
+    dateOfBirth: "",
+    placeOfBirth: "",
+    residence: "",
+    nationality: "",
     idCard: null as File | null,
-  })
+    password: "",
+  });
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, files } = e.target
-    setFormData(prev => ({
+    const { name, value, files } = e.target;
+    setFormData((prev) => ({
       ...prev,
-      [name]: files ? files[0] : value
-    }))
-  }
+      [name]: files ? files[0] : value,
+    }));
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Handle sign-up logic here
-    console.log('Sign up data:', formData)
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    try {
+      // Sign up the user with email and password
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      // Save additional user data in the database
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert([{
+          id: data.user?.id,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          username: formData.username,
+          date_of_birth: formData.dateOfBirth,
+          place_of_birth: formData.placeOfBirth,
+          residence: formData.residence,
+          nationality: formData.nationality,
+          id_card: formData.idCard ? formData.idCard.name : null, // Store file name
+        }]);
+
+      if (insertError) {
+        setError("Failed to save user details: " + insertError.message);
+        return;
+      }
+
+      setSuccess("Signup successful! Please check your email to confirm your account.");
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-black dark:text-white flex items-center justify-center px-4 py-12">
@@ -94,6 +142,18 @@ export default function SignUpPage() {
               />
             </div>
             <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                value={formData.password}
+                onChange={handleChange}
+                className="mt-1"
+              />
+            </div>
+            <div>
               <Label htmlFor="dateOfBirth">Date of Birth</Label>
               <Input
                 id="dateOfBirth"
@@ -131,7 +191,12 @@ export default function SignUpPage() {
             </div>
             <div>
               <Label htmlFor="nationality">Nationality</Label>
-              <Select name="nationality" onValueChange={(value) => setFormData(prev => ({ ...prev, nationality: value }))}>
+              <Select
+                name="nationality"
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, nationality: value }))
+                }
+              >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select your nationality" />
                 </SelectTrigger>
@@ -155,18 +220,19 @@ export default function SignUpPage() {
               className="mt-1"
             />
           </div>
+          {error && <p className="text-red-500">{error}</p>}
+          {success && <p className="text-green-500">{success}</p>}
           <Button type="submit" className="w-full">
             Create Account
           </Button>
         </form>
         <p className="text-center text-gray-600 dark:text-gray-400">
-          Already have an account?{' '}
+          Already have an account?{" "}
           <Link href="/signin" className="font-medium hover:underline">
             Sign in
           </Link>
         </p>
       </div>
     </div>
-  )
+  );
 }
-

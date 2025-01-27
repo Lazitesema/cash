@@ -39,6 +39,10 @@ import { Textarea } from "@/components/ui/textarea"
 
 interface User {
   id: string
+  profile: {
+    role: "admin" | "user"
+    status: "pending" | "approved" | "rejected"
+  }
   firstName: string
   lastName: string
   username: string
@@ -48,8 +52,6 @@ interface User {
   residence: string
   nationality: string
   idCard: string
-  role: "admin" | "user"
-  status: "pending" | "approved" | "rejected"
   balance: number
   withdrawalLimit: {
     weekly: number | null
@@ -61,13 +63,17 @@ interface User {
     monthly: number | null
     yearly: number | null
   }
-  feeType: "percentage" | "fixed"
   feeAmount: number
+  feeType: "percentage" | "fixed"
 }
 
 const initialUsers: User[] = [
   {
     id: "1",
+    profile: { 
+      role: "user",
+      status: "approved"
+    },
     firstName: "John",
     lastName: "Doe",
     username: "johndoe",
@@ -77,8 +83,6 @@ const initialUsers: User[] = [
     residence: "Los Angeles",
     nationality: "USA",
     idCard: "ID12345",
-    role: "user",
-    status: "approved",
     balance: 1000,
     withdrawalLimit: {
       weekly: 500,
@@ -95,6 +99,10 @@ const initialUsers: User[] = [
   },
   {
     id: "2",
+    profile: {
+      role: "user",
+      status: "pending"
+    },
     firstName: "Jane",
     lastName: "Smith",
     username: "janesmith",
@@ -104,8 +112,6 @@ const initialUsers: User[] = [
     residence: "Manchester",
     nationality: "UK",
     idCard: "ID67890",
-    role: "user",
-    status: "pending",
     balance: 0,
     withdrawalLimit: {
       weekly: null,
@@ -127,14 +133,15 @@ export default function UsersManagementPage() {
   const [newUser, setNewUser] = useState<Partial<User>>({
     withdrawalLimit: { weekly: null, monthly: null, yearly: null },
     sendingLimit: { weekly: null, monthly: null, yearly: null },
-    idCard: ""
+    idCard: "",
+    profile: { role: "user", status: "pending" }
   })
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all")
 
   const filteredUsers = users.filter(user => 
-    filterStatus === "all" ? true : user.status === filterStatus
+    filterStatus === "all" ? true : user.profile.status === filterStatus
   )
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -167,9 +174,11 @@ export default function UsersManagementPage() {
       setUsers([...users, {
         ...newUser,
         id: (users.length + 1).toString(),
-        status: "pending",
+        profile: {
+          status: "pending",
+          role: newUser.profile?.role || "user"
+        },
         balance: 0,
-        role: newUser.role || "user",
         feeType: "percentage",
         feeAmount: 0,
         withdrawalLimit: newUser.withdrawalLimit || { weekly: null, monthly: null, yearly: null },
@@ -178,7 +187,8 @@ export default function UsersManagementPage() {
       setNewUser({
         withdrawalLimit: { weekly: null, monthly: null, yearly: null },
         sendingLimit: { weekly: null, monthly: null, yearly: null },
-        idCard: ""
+        idCard: "",
+        profile: { role: "user", status: "pending" }
       })
       toast({
         title: "User Added",
@@ -239,7 +249,7 @@ export default function UsersManagementPage() {
 
   const handleApproveUser = (id: string) => {
     const updatedUsers = users.map(user => 
-      user.id === id ? { ...user, status: "approved" as const } : user
+      user.id === id ? { ...user, profile: { ...user.profile, status: "approved" as const } } : user
     )
     setUsers(updatedUsers)
     toast({
@@ -259,7 +269,7 @@ export default function UsersManagementPage() {
     }
 
     const updatedUsers = users.map(user => 
-      user.id === id ? { ...user, status: "rejected" as const } : user
+      user.id === id ? { ...user, profile: { ...user.profile, status: "rejected" as const } } : user
     )
     setUsers(updatedUsers)
     toast({
@@ -384,7 +394,16 @@ export default function UsersManagementPage() {
                 </div>
                 <div>
                   <Label htmlFor="role">Role</Label>
-                  <Select onValueChange={(value) => setNewUser({...newUser, role: value as "admin" | "user"})}>
+                  <Select 
+                    value={newUser.profile?.role || "user"}
+                    onValueChange={(value) => setNewUser({
+                      ...newUser, 
+                      profile: { 
+                        role: value as "admin" | "user", 
+                        status: "pending" 
+                      }
+                    })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
@@ -440,8 +459,8 @@ export default function UsersManagementPage() {
                   <TableRow key={user.id}>
                     <TableCell>{`${user.firstName} ${user.lastName}`}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
-                    <TableCell>{user.status}</TableCell>
+                    <TableCell>{user.profile.role}</TableCell>
+                    <TableCell>{user.profile.status}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
@@ -469,8 +488,8 @@ export default function UsersManagementPage() {
                                 <p><strong>Place of Birth:</strong> {user.placeOfBirth}</p>
                                 <p><strong>Residence:</strong> {user.residence}</p>
                                 <p><strong>Nationality:</strong> {user.nationality}</p>
-                                <p><strong>Role:</strong> {user.role}</p>
-                                <p><strong>Status:</strong> {user.status}</p>
+                                <p><strong>Role:</strong> {user.profile.role}</p>
+                                <p><strong>Status:</strong> {user.profile.status}</p>
                                 <p><strong>Balance:</strong> ${user.balance.toFixed(2)}</p>
                                 <div>
                                   <p><strong>Withdrawal Limits:</strong></p>
@@ -500,7 +519,7 @@ export default function UsersManagementPage() {
                             </DialogDescription>
                           </DialogContent>
                         </Dialog>
-                        {user.status === "pending" && (
+                        {user.profile.status === "pending" && (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleApproveUser(user.id)}>
                               <Check className="h-4 w-4" />
@@ -580,8 +599,14 @@ export default function UsersManagementPage() {
               <div>
                 <Label htmlFor="editRole">Role</Label>
                 <Select 
-                  value={newUser.role} 
-                  onValueChange={(value) => setNewUser({...newUser, role: value as "admin" | "user"})}
+                  value={newUser.profile?.role || "user"}
+                  onValueChange={(value) => setNewUser({
+                    ...newUser, 
+                    profile: { 
+                      role: value as "admin" | "user", 
+                      status: newUser.profile?.status || "pending"
+                    }
+                  })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
